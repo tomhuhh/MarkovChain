@@ -106,7 +106,7 @@ start_state = (1, 1, 0)
 herd[state_idx[start_state]] = 1000
 
 # Simulate herd evolution over a specified number of steps
-n_steps = 150  # months
+n_steps = 200  # months
 herd_evolution = [herd.copy()]
 for step in range(n_steps):
     herd = herd @ T
