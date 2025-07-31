@@ -57,9 +57,10 @@ def milk_yield(par, mim):
     p = par if par in [1, 2] else 3
     adj = parity_adj[p]
     a = a_base + adj["a"]
-    b = (b_base + adj["b"])*(np.e-2)
-    c = (c_base + adj["c"])*(np.e-4)
-    DIM = mim * 30  # Convert months in milk to days
+    b = (b_base + adj["b"])/100
+    c = (c_base + adj["c"])/10000
+    DIM = max(mim * 30, 1)  # Convert months in milk to days; Avoid DIM=0
+    print(f"Calculating milk yield for PAR={par}, MIM={mim}, DIM={DIM} Milk={a * (DIM ** b) * np.exp(-c * DIM)}")
     return a * (DIM ** b) * np.exp(-c * DIM)
 
 Last_MIM_to_Breed = 10  # Example: last month in milk to breed
@@ -84,7 +85,11 @@ for i, (par, mim, mip) in enumerate(states):
                 next_state_preg = (par, next_mim, 1)
                 T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * monthly_preg
             else:
-                T[i, state_idx[(1, 1, 0)]] += (1 - cull_p)
+                next_mim = MAX_MIM
+                next_state_stillopen = (par, next_mim, 0)
+                T[i, state_idx.get(next_state_stillopen, i)] += (1 - cull_p) * (1 - monthly_preg)
+                next_state_preg = (par, next_mim, 1)
+                T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * monthly_preg
             T[i, state_idx[(1, 1, 0)]] += cull_p
         else:
             # After last MIM to breed, check milk
@@ -119,8 +124,9 @@ for i, (par, mim, mip) in enumerate(states):
             next_state_abort = (par, next_mim, 0)
             T[i, state_idx.get(next_state_abort, i)] += (1 - cull_p) * monthly_abort
         else:
-            # At maximum MIM: if not calved and not pregnant, cull the cow
-            T[i, state_idx[(1, 1, 0)]] += monthly_abort * (1 - cull_p)
+            next_mim = MAX_MIM
+            next_state_abort = (par, next_mim, 0)
+            T[i, state_idx.get(next_state_abort, i)] += (1 - cull_p) * monthly_abort
 
         # (c) Culling: to fresh heifer
         T[i, state_idx[(1, 1, 0)]] += cull_p
