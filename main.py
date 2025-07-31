@@ -60,7 +60,6 @@ def milk_yield(par, mim):
     b = (b_base + adj["b"])/100
     c = (c_base + adj["c"])/10000
     DIM = max(mim * 30, 1)  # Convert months in milk to days; Avoid DIM=0
-    print(f"Calculating milk yield for PAR={par}, MIM={mim}, DIM={DIM} Milk={a * (DIM ** b) * np.exp(-c * DIM)}")
     return a * (DIM ** b) * np.exp(-c * DIM)
 
 Last_MIM_to_Breed = 10  # Example: last month in milk to breed
