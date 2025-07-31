@@ -43,9 +43,13 @@ for i, (par, mim, mip) in enumerate(states):
     # === 1. Nonpregnant cows ===
     if mip == 0:
         # (a) Stay not pregnant
-        next_mim = mim + 1 if mim < MAX_MIM else 1
-        next_state_stillopen = (par, next_mim, 0)
-        T[i, state_idx.get(next_state_stillopen, i)] += (1 - cull_p) * (1 - monthly_preg)
+        if mim < MAX_MIM:
+            next_mim = mim + 1
+            next_state_stillopen = (par, next_mim, 0)
+            T[i, state_idx.get(next_state_stillopen, i)] += (1 - cull_p) * (1 - monthly_preg)
+        else:
+            # At maximum MIM: if not calved, cull the cow
+            T[i, state_idx[(1, 1, 0)]] += (1 - monthly_preg) * (1 - cull_p)
         
         # (b) Become pregnant
         next_state_preg = (par, next_mim, 1)
@@ -62,8 +66,13 @@ for i, (par, mim, mip) in enumerate(states):
         T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * (1 - monthly_abort)
         
         # (b) Abort: return to open (not pregnant)
-        next_state_abort = (par, next_mim, 0)
-        T[i, state_idx.get(next_state_abort, i)] += (1 - cull_p) * monthly_abort
+        if mim < MAX_MIM:
+            next_mim = mim + 1
+            next_state_abort = (par, next_mim, 0)
+            T[i, state_idx.get(next_state_abort, i)] += (1 - cull_p) * monthly_abort
+        else:
+            # At maximum MIM: if not calved, cull the cow
+            T[i, state_idx[(1, 1, 0)]] += monthly_abort * (1 - cull_p)
 
         # (c) Culling: to fresh heifer
         T[i, state_idx[(1, 1, 0)]] += cull_p
