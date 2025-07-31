@@ -92,6 +92,12 @@ for i, (par, mim, mip) in enumerate(states):
         # (c) Culling: to fresh heifer
         T[i, state_idx[(1, 1, 0)]] += cull_p
 
-# Optional: Check that each row sums to (almost) 1.0
+# Check that each row sums to (almost) 1.0
 row_sums = T.sum(axis=1)
 assert np.allclose(row_sums, 1), "Some transitions don't sum to 1!"
+
+# Initial state vector
+# Start with all cows in PAR=1, MIM=1, MIP=0 (fresh heifers)
+herd = np.zeros(n_states)
+start_state = (1, 1, 0)
+herd[state_idx[start_state]] = 1.0
