@@ -101,3 +101,11 @@ assert np.allclose(row_sums, 1), "Some transitions don't sum to 1!"
 herd = np.zeros(n_states)
 start_state = (1, 1, 0)
 herd[state_idx[start_state]] = 1.0
+
+# Simulate herd evolution over a specified number of steps
+n_steps = 150  # months
+herd_evolution = [herd.copy()]
+for step in range(n_steps):
+    herd = herd @ T
+    herd_evolution.append(herd.copy())
+herd_evolution = np.array(herd_evolution)
