@@ -60,7 +60,7 @@ for i, (par, mim, mip) in enumerate(states):
 
     # === 2. Pregnant cows (not yet calving) ===
     elif mip < MAX_MIP:
-        next_mim = mim + 1 if mim < MAX_MIM else 1
+        next_mim = mim + 1 if mim < MAX_MIM else mim = MAX_MIM
         # (a) Progress pregnancy (not aborting)
         next_state_preg = (par, next_mim, mip + 1)
         T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * (1 - monthly_abort)
