@@ -1,13 +1,14 @@
 from os import stat
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # Model dimensions (PAR, MIM, MIP)
 # PAR = Parity number; 1 to 10
-# MIM = Months after calving or months in milk; 1 to 20
+# MIM = Months after calving or months in milk; 1 to 33
 # MIP = Months in pregnancy; 0 to 9, 0 for nonpregnant, and 1 to 9 for pregnant
 MAX_PAR = 10
-MAX_MIM = 20
+MAX_MIM = 33
 MAX_MIP = 9
 
 states = []
@@ -24,16 +25,19 @@ n_states = len(states)
 
 # Fixed transition probabilities
 # Parity-specific culling rates (parities 1–10)
-annual_cull = [0, 0.208, 0.289, 0.386] + [0.525]*7  # Index 0 unused for parities 1–10
+annual_cull = [0, 0.083, 0.114, 0.141] + [0.200]*7  # Index 0 unused for parities 1–10
 
 # Convert to monthly
 monthly_cull = [0] + [1 - (1 - x) ** (1/12) for x in annual_cull[1:]]
 # monthly_cull[1] is for parity 1, [2] for parity 2, etc.
 
 # Pregnancy and abortion (monthly)
-monthly_preg = 0.35 / 12 
+monthly_preg = 0.6 / 12 
 monthly_abort = 0.065 / 9
 
+# Transition matrix initialization
+# T[i, j] = Probability of transitioning from state i to state j
+# n_states x n_states matrix
 T = np.zeros((n_states, n_states))
 
 for i, (par, mim, mip) in enumerate(states):
@@ -42,18 +46,17 @@ for i, (par, mim, mip) in enumerate(states):
     
     # === 1. Nonpregnant cows ===
     if mip == 0:
-        # (a) Stay not pregnant
         if mim < MAX_MIM:
             next_mim = mim + 1
+            # (a) Stay not pregnant
             next_state_stillopen = (par, next_mim, 0)
             T[i, state_idx.get(next_state_stillopen, i)] += (1 - cull_p) * (1 - monthly_preg)
+            # (b) Become pregnant
+            next_state_preg = (par, next_mim, 1)
+            T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * monthly_preg
         else:
             # At maximum MIM: if not calved and not pregnant, cull the cow
-            T[i, state_idx[(1, 1, 0)]] += (1 - monthly_preg) * (1 - cull_p)
-        
-        # (b) Become pregnant
-        next_state_preg = (par, next_mim, 1)
-        T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * monthly_preg
+            T[i, state_idx[(1, 1, 0)]] += (1 - cull_p)
 
         # (c) Culling: always transitions to fresh heifer state (1,1,0)
         T[i, state_idx[(1, 1, 0)]] += cull_p
@@ -100,7 +103,7 @@ assert np.allclose(row_sums, 1), "Some transitions don't sum to 1!"
 # Start with all cows in PAR=1, MIM=1, MIP=0 (fresh heifers)
 herd = np.zeros(n_states)
 start_state = (1, 1, 0)
-herd[state_idx[start_state]] = 1.0
+herd[state_idx[start_state]] = 1000
 
 # Simulate herd evolution over a specified number of steps
 n_steps = 150  # months
@@ -109,3 +112,20 @@ for step in range(n_steps):
     herd = herd @ T
     herd_evolution.append(herd.copy())
 herd_evolution = np.array(herd_evolution)
+
+# Extract list of parities from states
+parities = sorted(set(par for par, _, _ in states))
+n_steps = herd_evolution.shape[0]
+
+# Plot number of cows in each parity group over time
+for par in parities:
+    par_indices = [i for i, (p, _, _) in enumerate(states) if p == par]
+    par_counts = herd_evolution[:, par_indices].sum(axis=1)
+    plt.plot(par_counts, label=f'Parity {par}')
+
+plt.xlabel('Month')
+plt.ylabel('Number of Cows')
+plt.title('Cows by Parity Over Time')
+plt.legend()
+plt.tight_layout()
+plt.show()
