@@ -84,8 +84,8 @@ for i, (par, mim, mip) in enumerate(states):
         next_state_fresh = (next_par, 1, 0)
         T[i, state_idx.get(next_state_fresh, i)] += (1 - cull_p) * (1 - monthly_abort)
         
-        # (b) Abort in 9th month: next lactation, open
-        next_mim = 1 if mim < MAX_MIM else 1
+        # (b) Abort in 9th month: the current lactation, open
+        next_mim = min(mim + 1, MAX_MIM)
         next_state_abort = (par, next_mim, 0)
         T[i, state_idx.get(next_state_abort, i)] += (1 - cull_p) * monthly_abort
         
