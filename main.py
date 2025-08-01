@@ -153,10 +153,10 @@ assert np.allclose(row_sums, 1), "Some transitions don't sum to 1!"
 # Start with all cows in PAR=1, MIM=1, MIP=0 (fresh heifers)
 herd = np.zeros(n_states)
 start_state = (1, 1, 0)
-herd[state_idx[start_state]] = 1000
+herd[state_idx[start_state]] = 1
 
 # Simulate herd evolution over a specified number of steps
-n_steps = 200  # months
+n_steps = 150  # months
 herd_evolution = [herd.copy()]
 for step in range(n_steps):
     herd = herd @ T
@@ -177,5 +177,87 @@ plt.xlabel('Month')
 plt.ylabel('Number of Cows')
 plt.title('Cows by Parity Over Time')
 plt.legend()
+plt.tight_layout()
+plt.show()
+
+# Economic parameters
+milk_price = 0.35  # $/kg
+feed_intake = 22   # kg/cow/day
+feed_price = 0.2   # $/kg
+repro_cost = 20    # $/cow/month
+replacement_cost = 1300  # $/cow
+salvage_value_per_kg = 0.84  # $/kg body weight
+body_weight = 650  # kg/cow
+calf_value = 100   # $/calf
+discount_rate = 0.06  # annual
+monthly_discount = (1 + discount_rate) ** (-1/12)
+
+n_months = herd_evolution[1:].shape[0]
+npv = 0.0
+discount_factor = 1.0
+npv_over_time = []
+
+for month in range(n_months):
+    herd_state = herd_evolution[month]
+    milk_income = 0.0
+    feed_cost = 0.0
+    repro_total_cost = 0.0
+    cull_cost = 0.0
+    replacement_total_cost = 0.0
+    calf_income = 0.0
+
+    # For each state, calculate economics
+    for idx, (par, mim, mip) in enumerate(states):
+        n_cows = herd_state[idx]
+        if n_cows == 0:
+            continue
+
+        # Milk income
+        milk = milk_yield(par, mim) * 30  # kg/month
+        milk_income += n_cows * milk * milk_price
+
+        # Feed cost
+        feed_cost += n_cows * feed_intake * 30 * feed_price
+
+        # Reproduction cost (only for cows eligible for breeding)
+        if mip == 0 and mim <= Last_MIM_to_Breed:
+            repro_total_cost += n_cows * repro_cost
+
+        # Calf income (when calving occurs: mip == MAX_MIP)
+        if mip == MAX_MIP:
+            calf_income += n_cows * calf_value
+
+    # Culling and replacement (estimate from herd loss)
+    if month > 0:
+        prev_herd = herd_evolution[month-1].sum()
+        curr_herd = herd_state.sum()
+        n_culled = max(prev_herd - curr_herd, 0)
+        cull_cost += n_culled * (-salvage_value_per_kg * body_weight)  # negative: income
+        replacement_total_cost += n_culled * replacement_cost
+
+    # Net cash flow for this month
+    net_cash_flow = (
+        milk_income
+        - feed_cost
+        - repro_total_cost
+        + calf_income
+        + cull_cost  # cull_cost is negative (income)
+        - replacement_total_cost
+    )
+
+    # Discount to present value
+    monthly_npv = net_cash_flow * discount_factor
+    npv_over_time.append(monthly_npv)
+    discount_factor *= monthly_discount
+
+accumulative_npv = np.array(npv_over_time)
+average_monthly_npv = accumulative_npv.mean()
+print(f"Average monthly discounted net present value (NPV): ${average_monthly_npv:.2f}")
+# Plot NPV over time
+plt.figure()
+plt.plot(npv_over_time)
+plt.xlabel('Month')
+plt.ylabel('Discounted Net Present Value (NPV) ($)')
+plt.title('Monthly Discounted Net Present Value (NPV) Over Time')
 plt.tight_layout()
 plt.show()
