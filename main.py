@@ -192,6 +192,16 @@ calf_value = 100   # $/calf
 discount_rate = 0.06  # annual
 monthly_discount = (1 + discount_rate) ** (-1/12)
 
+# Additive-related constants
+additive_cost_per_g = 0.33  # $/g (Pupo et al., 2025)
+additive_dose_mg_per_kg_feed = 80  # mg per kg feed intake
+milk_fat_pct = 3.8  # %
+milk_protein_pct = 3.2  # %
+ndf_pct = 33  # %
+methane_intensity_reduction = 0.32  # 32%
+feed_reduction = 0.09     # 9%
+milk_reduction = 0.05     # 5%
+
 n_months = herd_evolution[1:].shape[0]
 npv = 0.0
 discount_factor = 1.0
