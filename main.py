@@ -9,6 +9,42 @@ MAX_PAR = 10
 MAX_MIM = 33
 MAX_MIP = 9
 
+# Fixed transition probabilities
+# Parity-specific culling rates (parities 1–10)
+annual_cull = [0, 0.083, 0.114, 0.141] + [0.200]*7  # Index 0 unused for parities 1–10
+# Convert to monthly
+monthly_cull = [0] + [1 - (1 - x) ** (1/12) for x in annual_cull[1:]]
+# monthly_cull[1] is for parity 1, [2] for parity 2, etc.
+
+# Pregnancy and abortion (monthly)
+monthly_preg = 0.6 / 12 
+monthly_abort = 0.065 / 9
+
+# User-defined milk threshold
+Milk_Threshold_to_Cull = 22.7  # Example threshold
+
+# Economic parameters
+milk_price = 0.35  # $/kg
+feed_intake = 22   # kg/cow/day
+feed_price = 0.2   # $/kg
+repro_cost = 20    # $/cow/month
+replacement_cost = 1300  # $/cow
+salvage_value_per_kg = 0.84  # $/kg body weight
+body_weight = 650  # kg/cow
+calf_value = 100   # $/calf
+discount_rate = 0.06  # annual
+monthly_discount = (1 + discount_rate) ** (-1/12)
+
+# Methane-reducing additive-related constants
+additive_cost_per_g = 0.33  # $/g (Pupo et al., 2025)
+additive_dose_mg_per_kg_feed = 80  # mg per kg feed intake
+milk_fat_pct = 3.8  # %
+milk_protein_pct = 3.2  # %
+ndf_pct = 33  # %
+methane_intensity_reduction = 0.32  # 32%
+feed_reduction = 0.09     # 9%
+milk_reduction = 0.5     # 5%
+
 states = []
 for par in range(1, MAX_PAR+1):
     for mim in range(1, MAX_MIM+1):
@@ -22,21 +58,6 @@ for par in range(1, MAX_PAR+1):
                 states.append((par, mim, mip))
 state_idx = {s: i for i, s in enumerate(states)}
 n_states = len(states)
-
-# Fixed transition probabilities
-# Parity-specific culling rates (parities 1–10)
-annual_cull = [0, 0.083, 0.114, 0.141] + [0.200]*7  # Index 0 unused for parities 1–10
-
-# Convert to monthly
-monthly_cull = [0] + [1 - (1 - x) ** (1/12) for x in annual_cull[1:]]
-# monthly_cull[1] is for parity 1, [2] for parity 2, etc.
-
-# Pregnancy and abortion (monthly)
-monthly_preg = 0.6 / 12 
-monthly_abort = 0.065 / 9
-
-# User-defined milk threshold
-Milk_Threshold_to_Cull = 22.7  # Example threshold
 
 def milk_yield(par, mim):
     """Calculate milk yield based on Wood's lactation curve."""
@@ -62,145 +83,148 @@ def milk_yield(par, mim):
 
 Last_MIM_to_Breed = 10  # Example: last month in milk to breed
 
-# Transition matrix initialization
-# T[i, j] = Probability of transitioning from state i to state j
-# n_states x n_states matrix
-T = np.zeros((n_states, n_states))
+def build_transition_matrix(with_additive=False):
+    # Transition matrix initialization
+    # T[i, j] = Probability of transitioning from state i to state j
+    # n_states x n_states matrix
+    T = np.zeros((n_states, n_states))
 
-for i, (par, mim, mip) in enumerate(states):
-    # Culling: parity capped at 4+ for culling rates
-    cull_p = monthly_cull[min(par, 4)]
-    
-    # === 1. Nonpregnant cows, normal ===
-    if mip == 0:
-        if mim <= Last_MIM_to_Breed:
-            # Normal transitions (can breed)
-            if mim < MAX_MIM:
-                next_mim = mim + 1
-                next_state_stillopen = (par, next_mim, 0)
-                T[i, state_idx.get(next_state_stillopen, i)] += (1 - cull_p) * (1 - monthly_preg)
-                next_state_preg = (par, next_mim, 1)
-                T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * monthly_preg
-            else:
-                next_mim = MAX_MIM
-                next_state_stillopen = (par, next_mim, 0)
-                T[i, state_idx.get(next_state_stillopen, i)] += (1 - cull_p) * (1 - monthly_preg)
-                next_state_preg = (par, next_mim, 1)
-                T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * monthly_preg
-            T[i, state_idx[(1, 1, 0)]] += cull_p
+    for i, (par, mim, mip) in enumerate(states):
+        # Culling: parity capped at 4+ for culling rates
+        cull_p = monthly_cull[min(par, 4)]
+        
+        # --- Use adjusted milk yield if additive is applied ---
+        if with_additive:
+            milk = milk_yield(par, mim) * (1 - milk_reduction)
         else:
-            # After last MIM to breed, check milk
-            if milk_yield(par, mim) < Milk_Threshold_to_Cull:
-                # Cull for low milk
+            milk = milk_yield(par, mim)
+
+        # === 1. Nonpregnant cows, normal ===
+        if mip == 0:
+            if mim <= Last_MIM_to_Breed:
+                # Normal transitions (can breed)
+                if mim < MAX_MIM:
+                    next_mim = mim + 1
+                    next_state_stillopen = (par, next_mim, 0)
+                    T[i, state_idx.get(next_state_stillopen, i)] += (1 - cull_p) * (1 - monthly_preg)
+                    next_state_preg = (par, next_mim, 1)
+                    T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * monthly_preg
+                else:
+                    next_mim = MAX_MIM
+                    next_state_stillopen = (par, next_mim, 0)
+                    T[i, state_idx.get(next_state_stillopen, i)] += (1 - cull_p) * (1 - monthly_preg)
+                    next_state_preg = (par, next_mim, 1)
+                    T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * monthly_preg
+                T[i, state_idx[(1, 1, 0)]] += cull_p
+            else:
+                # After last MIM to breed, check milk
+                if milk < Milk_Threshold_to_Cull:
+                    # Cull for low milk
+                    T[i, state_idx[(1, 1, 0)]] = 1.0
+                else:
+                    # Transition to "do not breed" state
+                    next_mim = mim + 1 if mim < MAX_MIM else MAX_MIM
+                    next_state_dnb = (par, next_mim, -1)
+                    T[i, state_idx.get(next_state_dnb, i)] = 1.0
+
+        # === 2. Nonpregnant, do not breed ===
+        elif mip == -1:
+            if milk < Milk_Threshold_to_Cull:
                 T[i, state_idx[(1, 1, 0)]] = 1.0
             else:
-                # Transition to "do not breed" state
                 next_mim = mim + 1 if mim < MAX_MIM else MAX_MIM
                 next_state_dnb = (par, next_mim, -1)
                 T[i, state_idx.get(next_state_dnb, i)] = 1.0
 
-    # === 2. Nonpregnant, do not breed ===
-    elif mip == -1:
-        if milk_yield(par, mim) < Milk_Threshold_to_Cull:
-            T[i, state_idx[(1, 1, 0)]] = 1.0
-        else:
+        # === 3. Pregnant cows (not yet calving) ===
+        elif mip < MAX_MIP:
             next_mim = mim + 1 if mim < MAX_MIM else MAX_MIM
-            next_state_dnb = (par, next_mim, -1)
-            T[i, state_idx.get(next_state_dnb, i)] = 1.0
+            # (a) Progress pregnancy (not aborting)
+            next_state_preg = (par, next_mim, mip + 1)
+            T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * (1 - monthly_abort)
+            
+            # (b) Abort: return to open (not pregnant)
+            if mim < MAX_MIM:
+                next_mim = mim + 1
+                next_state_abort = (par, next_mim, 0)
+                T[i, state_idx.get(next_state_abort, i)] += (1 - cull_p) * monthly_abort
+            else:
+                next_mim = MAX_MIM
+                next_state_abort = (par, next_mim, 0)
+                T[i, state_idx.get(next_state_abort, i)] += (1 - cull_p) * monthly_abort
 
-    # === 3. Pregnant cows (not yet calving) ===
-    elif mip < MAX_MIP:
-        next_mim = mim + 1 if mim < MAX_MIM else MAX_MIM
-        # (a) Progress pregnancy (not aborting)
-        next_state_preg = (par, next_mim, mip + 1)
-        T[i, state_idx.get(next_state_preg, i)] += (1 - cull_p) * (1 - monthly_abort)
-        
-        # (b) Abort: return to open (not pregnant)
-        if mim < MAX_MIM:
-            next_mim = mim + 1
+            # (c) Culling: to fresh heifer
+            T[i, state_idx[(1, 1, 0)]] += cull_p
+
+        # === 4. Pregnant cows at month 9 (calving) ===
+        else:  # mip == MAX_MIP (about to calve)
+            # (a) Calving: move to next parity, MIM=1, MIP=0
+            next_par = min(par + 1, MAX_PAR)
+            next_state_fresh = (next_par, 1, 0)
+            T[i, state_idx.get(next_state_fresh, i)] += (1 - cull_p) * (1 - monthly_abort)
+            
+            # (b) Abort in 9th month: the current lactation, open
+            next_mim = min(mim + 1, MAX_MIM)
             next_state_abort = (par, next_mim, 0)
             T[i, state_idx.get(next_state_abort, i)] += (1 - cull_p) * monthly_abort
-        else:
-            next_mim = MAX_MIM
-            next_state_abort = (par, next_mim, 0)
-            T[i, state_idx.get(next_state_abort, i)] += (1 - cull_p) * monthly_abort
+            
+            # (c) Culling: to fresh heifer
+            T[i, state_idx[(1, 1, 0)]] += cull_p
 
-        # (c) Culling: to fresh heifer
-        T[i, state_idx[(1, 1, 0)]] += cull_p
-
-    # === 4. Pregnant cows at month 9 (calving) ===
-    else:  # mip == MAX_MIP (about to calve)
-        # (a) Calving: move to next parity, MIM=1, MIP=0
-        next_par = min(par + 1, MAX_PAR)
-        next_state_fresh = (next_par, 1, 0)
-        T[i, state_idx.get(next_state_fresh, i)] += (1 - cull_p) * (1 - monthly_abort)
-        
-        # (b) Abort in 9th month: the current lactation, open
-        next_mim = min(mim + 1, MAX_MIM)
-        next_state_abort = (par, next_mim, 0)
-        T[i, state_idx.get(next_state_abort, i)] += (1 - cull_p) * monthly_abort
-        
-        # (c) Culling: to fresh heifer
-        T[i, state_idx[(1, 1, 0)]] += cull_p
-
-# Check that each row sums to (almost) 1.0
-row_sums = T.sum(axis=1)
-assert np.allclose(row_sums, 1), "Some transitions don't sum to 1!"
+    # Check that each row sums to (almost) 1.0
+    row_sums = T.sum(axis=1)
+    assert np.allclose(row_sums, 1), "Some transitions don't sum to 1!"
+    return T
 
 # Initial state vector
-# Start with all cows in PAR=1, MIM=1, MIP=0 (fresh heifers)
-herd = np.zeros(n_states)
 start_state = (1, 1, 0)
-herd[state_idx[start_state]] = 1
-
-# Simulate herd evolution over a specified number of steps
 n_steps = 150  # months
-herd_evolution = [herd.copy()]
+herd_init = np.zeros(n_states)
+herd_init[state_idx[start_state]] = 1
+
+# Simulate herd evolution with additive
+herd = herd_init.copy()
+T_additive = build_transition_matrix(with_additive=True)
+herd_evolution_additive = [herd.copy()]
 for step in range(n_steps):
-    herd = herd @ T
-    herd_evolution.append(herd.copy())
-herd_evolution = np.array(herd_evolution)
+    herd = herd @ T_additive
+    herd_evolution_additive.append(herd.copy())
+herd_evolution_additive = np.array(herd_evolution_additive)
 
-# Extract list of parities from states
-parities = sorted(set(par for par, _, _ in states))
-n_steps = herd_evolution.shape[0]
+# Simulate herd evolution without additive
+herd = herd_init.copy()
+T_noadditive = build_transition_matrix(with_additive=False)
+herd_evolution_noadditive = [herd.copy()]
+for step in range(n_steps):
+    herd = herd @ T_noadditive
+    herd_evolution_noadditive.append(herd.copy())
+herd_evolution_noadditive = np.array(herd_evolution_noadditive)
 
-# Plot number of cows in each parity group over time
-for par in parities:
-    par_indices = [i for i, (p, _, _) in enumerate(states) if p == par]
-    par_counts = herd_evolution[:, par_indices].sum(axis=1)
-    plt.plot(par_counts, label=f'Parity {par}')
+def plot_parity_groups_over_time(herd_evolution, states):
+    """
+    Plots the number of cows in each parity group over time.
 
-plt.xlabel('Month')
-plt.ylabel('Number of Cows')
-plt.title('Cows by Parity Over Time')
-plt.legend()
-plt.tight_layout()
-plt.show()
+    Args:
+        herd_evolution (np.ndarray): Array of herd states over time (months x states).
+        states (list): List of all possible states (par, mim, mip).
+    """
+    parities = sorted(set(par for par, _, _ in states))
+    for par in parities:
+        par_indices = [i for i, (p, _, _) in enumerate(states) if p == par]
+        par_counts = herd_evolution[:, par_indices].sum(axis=1)
+        plt.plot(par_counts, label=f'Parity {par}')
 
-# Economic parameters
-milk_price = 0.35  # $/kg
-feed_intake = 22   # kg/cow/day
-feed_price = 0.2   # $/kg
-repro_cost = 20    # $/cow/month
-replacement_cost = 1300  # $/cow
-salvage_value_per_kg = 0.84  # $/kg body weight
-body_weight = 650  # kg/cow
-calf_value = 100   # $/calf
-discount_rate = 0.06  # annual
-monthly_discount = (1 + discount_rate) ** (-1/12)
+    plt.xlabel('Month')
+    plt.ylabel('Number of Cows')
+    plt.title('Cows by Parity Over Time')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
 
-# Methane-reducing additive-related constants
-additive_cost_per_g = 0.33  # $/g (Pupo et al., 2025)
-additive_dose_mg_per_kg_feed = 80  # mg per kg feed intake
-milk_fat_pct = 3.8  # %
-milk_protein_pct = 3.2  # %
-ndf_pct = 33  # %
-methane_intensity_reduction = 0.32  # 32%
-feed_reduction = 0.09     # 9%
-milk_reduction = 0.05     # 5%
+plot_parity_groups_over_time(herd_evolution_additive, states)
+plot_parity_groups_over_time(herd_evolution_noadditive, states)
 
-n_months = herd_evolution[1:].shape[0]
+n_months = herd_evolution_additive[1:].shape[0]
 
 def methane_production(feed_intake, ndf_pct, milk_fat_pct, body_weight):
     """
@@ -233,7 +257,7 @@ def methane_kg_per_day_add(methane_intensity, methane_intensity_reduction, ecm_k
     """Calculate methane production with additive."""
     return methane_intensity * (1 - methane_intensity_reduction) * ecm_kg
 
-def monthly_econ_emis_summary(with_additive=False):
+def monthly_econ_emis_summary(with_additive=False, herd_evolution=herd_evolution_noadditive):
     """Calculate monthly economic and emissions summary."""
     npv_over_time_additive = []
     npv_over_time_noadditive = []
@@ -357,12 +381,13 @@ def monthly_econ_emis_summary(with_additive=False):
     }
 
 # Run the summary function once for each scenario
-results = monthly_econ_emis_summary(with_additive=True)
+results_additive = monthly_econ_emis_summary(with_additive=True, herd_evolution=herd_evolution_additive)
+results_noadditive = monthly_econ_emis_summary(with_additive=False, herd_evolution=herd_evolution_noadditive)
 
-npv_over_time_additive = results["npv_over_time_additive"]
-npv_over_time_noadditive = results["npv_over_time_noadditive"]
-methane_add_over_time = results["methane_add_over_time"]
-methane_noadd_over_time = results["methane_noadd_over_time"]
+npv_over_time_additive = results_additive["npv_over_time_additive"]
+npv_over_time_noadditive = results_noadditive["npv_over_time_noadditive"]
+methane_add_over_time = results_additive["methane_add_over_time"]
+methane_noadd_over_time = results_noadditive["methane_noadd_over_time"]
 
 # Plot both on the same graph
 plt.figure()
