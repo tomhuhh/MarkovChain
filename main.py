@@ -1,6 +1,4 @@
-from os import stat
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 
 # Model dimensions (PAR, MIM, MIP)
