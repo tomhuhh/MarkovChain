@@ -20,6 +20,8 @@ monthly_cull = [0] + [1 - (1 - x) ** (1/12) for x in annual_cull[1:]]
 monthly_preg = 0.6 / 12 
 monthly_abort = 0.065 / 9
 
+# Last month in milk to breed
+Last_MIM_to_Breed = 10
 # User-defined milk threshold
 Milk_Threshold_to_Cull = 22.7  # Example threshold
 
@@ -43,7 +45,7 @@ milk_protein_pct = 3.2  # %
 ndf_pct = 33  # %
 methane_intensity_reduction = 0.32  # 32%
 feed_reduction = 0.09     # 9%
-milk_reduction = 0.5     # 5%
+milk_reduction = 0.05     # 5%
 
 states = []
 for par in range(1, MAX_PAR+1):
@@ -80,8 +82,6 @@ def milk_yield(par, mim):
     c = (c_base + adj["c"])/10000
     DIM = max(mim * 30, 1)  # Convert months in milk to days; Avoid DIM=0
     return a * (DIM ** b) * np.exp(-c * DIM)
-
-Last_MIM_to_Breed = 10  # Example: last month in milk to breed
 
 def build_transition_matrix(with_additive=False):
     # Transition matrix initialization
@@ -221,7 +221,9 @@ def plot_parity_groups_over_time(herd_evolution, states):
     plt.tight_layout()
     plt.show()
 
+print("plotting parity groups over time for additive scenario")
 plot_parity_groups_over_time(herd_evolution_additive, states)
+print("plotting parity groups over time for no additive scenario")
 plot_parity_groups_over_time(herd_evolution_noadditive, states)
 
 n_months = herd_evolution_additive[1:].shape[0]
@@ -323,7 +325,7 @@ def monthly_econ_emis_summary(with_additive=False, herd_evolution=herd_evolution
                 milk_income_add += n_cows * milk_add * 30 * milk_price
                 feed_cost_add += n_cows * feed_intake_add * 30 * feed_price
                 # Additive cost
-                additive_g_per_cow_per_month = (additive_dose_mg_per_kg_feed / 1000) * feed_intake_add * 30 / 1000
+                additive_g_per_cow_per_month = (additive_dose_mg_per_kg_feed / 1000) * feed_intake_add * 30
                 additive_cost += n_cows * additive_g_per_cow_per_month * additive_cost_per_g
                 if mip == 0 and mim <= Last_MIM_to_Breed:
                     repro_total_cost_add += n_cows * repro_cost
