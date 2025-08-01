@@ -17,8 +17,8 @@ monthly_cull = [0] + [1 - (1 - x) ** (1/12) for x in annual_cull[1:]]
 # monthly_cull[1] is for parity 1, [2] for parity 2, etc.
 
 # Pregnancy and abortion (monthly)
-monthly_preg = 0.6 / 12 
-monthly_abort = 0.065 / 9
+monthly_preg = 0.6
+monthly_abort = 0.065
 
 # Last month in milk to breed
 Last_MIM_to_Breed = 10
@@ -342,9 +342,9 @@ def monthly_econ_emis_summary(with_additive=False, herd_evolution=herd_evolution
             curr_herd = herd_state.sum()
             n_culled = max(prev_herd - curr_herd, 0)
             if with_additive:
-                cull_cost_add += n_culled * (-salvage_value_per_kg * body_weight)
+                cull_cost_add += n_culled * (salvage_value_per_kg * body_weight)
                 replacement_total_cost_add += n_culled * replacement_cost
-            cull_cost_noadd += n_culled * (-salvage_value_per_kg * body_weight)
+            cull_cost_noadd += n_culled * (salvage_value_per_kg * body_weight)
             replacement_total_cost_noadd += n_culled * replacement_cost
 
         # --- Net cash flow with additive ---
