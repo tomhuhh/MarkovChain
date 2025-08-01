@@ -216,7 +216,7 @@ def plot_parity_groups_over_time(herd_evolution, states, scenario_name):
     for par in parities:
         par_indices = [i for i, (p, _, _) in enumerate(states) if p == par]
         par_counts = herd_evolution[:, par_indices].sum(axis=1)
-        print(f"{scenario_name} - Parity {par}: {par_counts[-1]:.2f} cows")
+        # print(f"{scenario_name} - Parity {par}: {par_counts[-1]:.2f} cows")
         plt.plot(par_counts, label=f'Parity {par}')
 
     plt.xlabel('Month')
@@ -399,15 +399,19 @@ methane_add_over_time = results_additive["methane_add_over_time"]
 methane_noadd_over_time = results_noadditive["methane_noadd_over_time"]
 
 # Plot both on the same graph
-plt.figure()
+plt.figure(figsize=(10, 6))
 plt.plot(npv_over_time_additive, label="With Additive")
 plt.plot(npv_over_time_noadditive, label="Without Additive")
 plt.xlabel('Month')
 plt.ylabel('Discounted Net Present Value ($)')
 plt.title('Monthly Discounted Net Present Value (NPV; $): With vs Without Additive')
-plt.legend()
+plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10)
 plt.tight_layout()
-plt.show()
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+filename = f'/Users/haowenhu/Library/Mobile Documents/com~apple~CloudDocs/Reed Lab/A Exam/A Exam Responses/MC Figures/NPV_Comparison_{timestamp}.png'
+plt.savefig(filename, dpi=300)
+plt.close()
+# plt.show()
 
 avg_monthly_npv_add = np.mean(npv_over_time_additive)
 avg_monthly_npv_noadd = np.mean(npv_over_time_noadditive)
