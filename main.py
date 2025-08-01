@@ -192,7 +192,7 @@ calf_value = 100   # $/calf
 discount_rate = 0.06  # annual
 monthly_discount = (1 + discount_rate) ** (-1/12)
 
-# Additive-related constants
+# Methane-reducing additive-related constants
 additive_cost_per_g = 0.33  # $/g (Pupo et al., 2025)
 additive_dose_mg_per_kg_feed = 80  # mg per kg feed intake
 milk_fat_pct = 3.8  # %
@@ -205,6 +205,8 @@ milk_reduction = 0.05     # 5%
 n_months = herd_evolution[1:].shape[0]
 npv_over_time_additive = []
 npv_over_time_noadditive = []
+methane_add_over_time = []
+methane_noadd_over_time = []
 discount_factor_add = 1.0
 discount_factor_noadd = 1.0
 
@@ -236,6 +238,7 @@ def methane_kg_per_day_add(methane_intensity, methane_intensity_reduction, ecm_k
 for month in range(n_months):
     herd_state = herd_evolution[month]
     # --- With additive ---
+    monthly_methane_add = 0.0
     milk_income_add = 0.0
     feed_cost_add = 0.0
     repro_total_cost_add = 0.0
@@ -245,6 +248,7 @@ for month in range(n_months):
     additive_cost = 0.0
 
     # --- Without additive ---
+    monthly_methane_noadd = 0.0
     milk_income_noadd = 0.0
     feed_cost_noadd = 0.0
     repro_total_cost_noadd = 0.0
@@ -257,10 +261,37 @@ for month in range(n_months):
         if n_cows == 0:
             continue
 
+        # --- Without additive ---
+        milk_noadd = milk_yield(par, mim) # kg/day
+        methane_g_per_day_noadd = methane_production(
+                feed_intake, ndf_pct, milk_fat_pct, body_weight
+            )
+        ecm_kg_noadd = ecm(milk_noadd, milk_fat_pct, milk_protein_pct)
+        methane_intensity_noadd = methane_intensity(methane_g_per_day_noadd, ecm_kg_noadd)
+        monthly_methane_noadd += methane_g_per_day_noadd * 30 * n_cows / 1000 # Convert to kg/month
+        print(f"Month {month+1}, Parity {par}, MIM {mim}, MIP {mip}: {n_cows} cows, Milk: {milk_noadd:.2f} kg/day, Methane : {methane_g_per_day_noadd:.4f} g/d")
+
+        milk_income_noadd += n_cows * milk_noadd * 30 * milk_price
+        feed_cost_noadd += n_cows * feed_intake * 30 * feed_price
+        if mip == 0 and mim <= Last_MIM_to_Breed:
+            repro_total_cost_noadd += n_cows * repro_cost
+        if mip == MAX_MIP:
+            calf_income_noadd += n_cows * calf_value
+
         # --- With additive ---
         feed_intake_add = feed_intake * (1 - feed_reduction)
-        milk_add = milk_yield(par, mim) * (1 - milk_reduction) * 30
-        milk_income_add += n_cows * milk_add * milk_price
+        milk_add = milk_yield(par, mim) * (1 - milk_reduction)
+        # ECM (kg/day)
+        ecm_kg_add = ecm(milk_add, milk_fat_pct, milk_protein_pct)
+        # Methane with additive reduction (kg/day)
+        methane_kg_per_day_add_final = methane_kg_per_day_add(
+            methane_intensity_noadd, methane_intensity_reduction, ecm_kg_add
+        )
+        print(f"Month {month+1}, Parity {par}, MIM {mim}, MIP {mip}: {n_cows} cows, Milk with Additive: {milk_add:.2f} kg/day, Methane with Additive: {methane_kg_per_day_add_final*1000:.4f} g/d")
+        # Monthly methane (kg)
+        monthly_methane_add += methane_kg_per_day_add_final * 30 * n_cows
+
+        milk_income_add += n_cows * milk_add * 30 * milk_price
         feed_cost_add += n_cows * feed_intake_add * 30 * feed_price
         # Additive cost
         additive_g_per_cow_per_month = (additive_dose_mg_per_kg_feed / 1000) * feed_intake_add * 30 / 1000
@@ -270,15 +301,10 @@ for month in range(n_months):
         if mip == MAX_MIP:
             calf_income_add += n_cows * calf_value
 
-        # --- Without additive ---
-        milk_noadd = milk_yield(par, mim) * 30
-        milk_income_noadd += n_cows * milk_noadd * milk_price
-        feed_cost_noadd += n_cows * feed_intake * 30 * feed_price
-        if mip == 0 and mim <= Last_MIM_to_Breed:
-            repro_total_cost_noadd += n_cows * repro_cost
-        if mip == MAX_MIP:
-            calf_income_noadd += n_cows * calf_value
-
+    # Store monthly total methane production
+    methane_add_over_time.append(monthly_methane_add)
+    methane_noadd_over_time.append(monthly_methane_noadd)
+    
     # Culling and replacement (estimate from herd loss)
     if month > 0:
         prev_herd = herd_evolution[month-1].sum()
@@ -321,8 +347,8 @@ plt.figure()
 plt.plot(npv_over_time_additive, label="With Additive")
 plt.plot(npv_over_time_noadditive, label="Without Additive")
 plt.xlabel('Month')
-plt.ylabel('Discounted Net Cash Flow ($)')
-plt.title('Monthly Discounted Net Cash Flow: With vs Without Additive')
+plt.ylabel('Discounted Net Present Value ($)')
+plt.title('Monthly Discounted Net Present Value (NPV; $): With vs Without Additive')
 plt.legend()
 plt.tight_layout()
 plt.show()
