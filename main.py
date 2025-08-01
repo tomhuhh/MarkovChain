@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 # Model dimensions (PAR, MIM, MIP)
 # PAR = Parity number; 1 to 10
@@ -200,31 +201,38 @@ for step in range(n_steps):
     herd_evolution_noadditive.append(herd.copy())
 herd_evolution_noadditive = np.array(herd_evolution_noadditive)
 
-def plot_parity_groups_over_time(herd_evolution, states):
+def plot_parity_groups_over_time(herd_evolution, states, scenario_name):
     """
-    Plots the number of cows in each parity group over time.
+    Plots and saves the number of cows in each parity group over time for a given scenario.
 
     Args:
         herd_evolution (np.ndarray): Array of herd states over time (months x states).
         states (list): List of all possible states (par, mim, mip).
+        scenario_name (str): Name of the scenario for filename and title.
     """
+    plt.rcParams.update({'font.family': 'Arial', 'font.size': 12})
+    plt.figure(figsize=(10, 6))
     parities = sorted(set(par for par, _, _ in states))
     for par in parities:
         par_indices = [i for i, (p, _, _) in enumerate(states) if p == par]
         par_counts = herd_evolution[:, par_indices].sum(axis=1)
+        print(f"{scenario_name} - Parity {par}: {par_counts[-1]:.2f} cows")
         plt.plot(par_counts, label=f'Parity {par}')
 
     plt.xlabel('Month')
     plt.ylabel('Number of Cows')
-    plt.title('Cows by Parity Over Time')
-    plt.legend()
+    plt.title(f'Cows by Parity Over Time ({scenario_name})')
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10)
     plt.tight_layout()
-    plt.show()
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'/Users/haowenhu/Library/Mobile Documents/com~apple~CloudDocs/Reed Lab/A Exam/A Exam Responses/MC Figures/Parity_Groups_{scenario_name}_{timestamp}.png'
+    plt.savefig(filename, dpi=300)
+    plt.close()
 
 print("plotting parity groups over time for additive scenario")
-plot_parity_groups_over_time(herd_evolution_additive, states)
+plot_parity_groups_over_time(herd_evolution_additive, states, scenario_name="Additive")
 print("plotting parity groups over time for no additive scenario")
-plot_parity_groups_over_time(herd_evolution_noadditive, states)
+plot_parity_groups_over_time(herd_evolution_noadditive, states, scenario_name="NoAdditive")
 
 n_months = herd_evolution_additive[1:].shape[0]
 
