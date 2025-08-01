@@ -203,7 +203,10 @@ milk_reduction = 0.05     # 5%
 n_months = herd_evolution[1:].shape[0]
 
 def methane_production(feed_intake, ndf_pct, milk_fat_pct, body_weight):
-    # Returns methane production in g/day (Niu et al., 2018)
+    """
+    Calculate methane production in g/day based on feed intake, NDF percentage, milk fat percentage, and body weight.
+    (Niu et al., 2018)
+    """
     methane_g_per_day = (
         -126
         + 11.3 * feed_intake
@@ -214,11 +217,14 @@ def methane_production(feed_intake, ndf_pct, milk_fat_pct, body_weight):
     return methane_g_per_day
 
 def ecm(milk_kg, fat_pct, protein_pct):
-    # Returns ECM in kg (DRMS, 2014)
+    """
+    Calculate energy-corrected milk (ECM) in kg.
+    (DRMS, 2014)
+    """
     return milk_kg * (0.327 + 12.95 * (fat_pct / 100) + 7.2 * (protein_pct / 100))
 
 def methane_intensity(methane_g_per_day, ecm_kg):
-    # Returns methane intensity in g/kg ECM
+    """Calculate methane intensity in g/kg ECM."""
     if ecm_kg <= 0:
         return 0.0
     return methane_g_per_day / (ecm_kg * 1000)  # Convert to kg/kg
@@ -228,6 +234,7 @@ def methane_kg_per_day_add(methane_intensity, methane_intensity_reduction, ecm_k
     return methane_intensity * (1 - methane_intensity_reduction) * ecm_kg
 
 def monthly_econ_emis_summary(with_additive=False):
+    """Calculate monthly economic and emissions summary."""
     npv_over_time_additive = []
     npv_over_time_noadditive = []
     methane_add_over_time = []
