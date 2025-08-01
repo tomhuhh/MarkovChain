@@ -350,13 +350,12 @@ def monthly_econ_emis_summary(with_additive=False):
     }
 
 # Run the summary function once for each scenario
-results_add = monthly_econ_emis_summary(with_additive=True)
-results_noadd = monthly_econ_emis_summary(with_additive=False)
+results = monthly_econ_emis_summary(with_additive=True)
 
-npv_over_time_additive = results_add["npv_over_time_additive"]
-npv_over_time_noadditive = results_noadd["npv_over_time_noadditive"]
-methane_over_time_additive = results_add["methane_add_over_time"]
-methane_over_time_noadditive = results_noadd["methane_noadd_over_time"]
+npv_over_time_additive = results["npv_over_time_additive"]
+npv_over_time_noadditive = results["npv_over_time_noadditive"]
+methane_add_over_time = results["methane_add_over_time"]
+methane_noadd_over_time = results["methane_noadd_over_time"]
 
 # Plot both on the same graph
 plt.figure()
@@ -376,7 +375,7 @@ print(f"Average monthly discounted NPV (with additive): ${avg_monthly_npv_add:,.
 print(f"Average monthly discounted NPV (without additive): ${avg_monthly_npv_noadd:,.2f}")
 
 # Whole herd monthly methane reduction
-herd_ch4_reduction_kg = np.array(methane_over_time_noadditive) - np.array(methane_over_time_additive)
+herd_ch4_reduction_kg = np.array(methane_noadd_over_time) - np.array(methane_add_over_time)
 
 # Define incentive grid ($0 to $4 per kg methane reduction)
 incentive_grid = np.arange(0, 4.1, 0.1)
@@ -391,10 +390,10 @@ for incentive in incentive_grid:
     payment_per_month = herd_ch4_reduction_kg * incentive  # $ per month
 
     # Calculate new herd net income, *including incentive*
-    net_income_with_incentive = npv_over_time_additive + (incentive * herd_ch4_reduction_kg)
+    net_income_with_incentive = npv_over_time_additive + payment_per_month
 
     # Discounted NPV for full period
-    npv = float(np.sum(net_income_with_incentive / ((1 + discount_rate) ** np.arange(len(npv_over_time_additive)))))
+    npv = float(np.sum(net_income_with_incentive * (monthly_discount ** np.arange(len(npv_over_time_additive)))))
 
     npv_results.append((incentive, npv))
 
