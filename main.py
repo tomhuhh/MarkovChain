@@ -349,8 +349,14 @@ def monthly_econ_emis_summary(with_additive=False):
         "methane_noadd_over_time": methane_noadd_over_time
     }
 
-npv_over_time_additive = monthly_econ_emis_summary(with_additive=True)["npv_over_time_additive"]
-npv_over_time_noadditive = monthly_econ_emis_summary(with_additive=False)["npv_over_time_noadditive"]
+# Run the summary function once for each scenario
+results_add = monthly_econ_emis_summary(with_additive=True)
+results_noadd = monthly_econ_emis_summary(with_additive=False)
+
+npv_over_time_additive = results_add["npv_over_time_additive"]
+npv_over_time_noadditive = results_noadd["npv_over_time_noadditive"]
+methane_over_time_additive = results_add["methane_add_over_time"]
+methane_over_time_noadditive = results_noadd["methane_noadd_over_time"]
 
 # Plot both on the same graph
 plt.figure()
@@ -368,3 +374,43 @@ avg_monthly_npv_noadd = np.mean(npv_over_time_noadditive)
 
 print(f"Average monthly discounted NPV (with additive): ${avg_monthly_npv_add:,.2f}")
 print(f"Average monthly discounted NPV (without additive): ${avg_monthly_npv_noadd:,.2f}")
+
+# Whole herd monthly methane reduction
+herd_ch4_reduction_kg = np.array(methane_over_time_noadditive) - np.array(methane_over_time_additive)
+
+# Define incentive grid ($0 to $4 per kg methane reduction)
+incentive_grid = np.arange(0, 4.1, 0.1)
+
+# Store results
+best_npv = -np.inf
+best_incentive = None
+npv_results = []
+
+for incentive in incentive_grid:
+    # Calculate additional incentive payment per month for herd
+    payment_per_month = herd_ch4_reduction_kg * incentive  # $ per month
+
+    # Calculate new herd net income, *including incentive*
+    net_income_with_incentive = npv_over_time_additive + (incentive * herd_ch4_reduction_kg)
+
+    # Discounted NPV for full period
+    npv = float(np.sum(net_income_with_incentive / ((1 + discount_rate) ** np.arange(len(npv_over_time_additive)))))
+
+    npv_results.append((incentive, npv))
+
+    if npv > best_npv:
+        best_npv = npv
+        best_incentive = incentive
+
+print(f"Best incentive: ${best_incentive:.2f} per kg CH4 reduced/month")
+print(f"Corresponding NPV: ${best_npv:,.0f}")
+
+# (Optional) Plot the NPV vs. incentive curve
+x, y = zip(*npv_results)
+plt.figure()
+plt.plot(x, y)
+plt.xlabel("Incentive ($ per kg CH4 reduced per month)")
+plt.ylabel("Discounted Herd NPV ($)")
+plt.title("Optimal Incentive Level for Methane Abatement")
+plt.tight_layout()
+plt.show()
