@@ -229,6 +229,10 @@ def methane_intensity(methane_g_per_day, ecm_kg):
         return 0.0
     return methane_g_per_day / (ecm_kg * 1000)  # Convert to kg/kg
 
+def methane_kg_per_day_add(methane_intensity, methane_intensity_reduction, ecm_kg):
+    """Calculate methane production with additive."""
+    return methane_intensity * (1 - methane_intensity_reduction) * ecm_kg
+
 for month in range(n_months):
     herd_state = herd_evolution[month]
     # --- With additive ---
