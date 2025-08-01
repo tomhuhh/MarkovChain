@@ -203,71 +203,107 @@ feed_reduction = 0.09     # 9%
 milk_reduction = 0.05     # 5%
 
 n_months = herd_evolution[1:].shape[0]
-npv = 0.0
-discount_factor = 1.0
-npv_over_time = []
+npv_over_time_additive = []
+npv_over_time_noadditive = []
+discount_factor_add = 1.0
+discount_factor_noadd = 1.0
 
 for month in range(n_months):
     herd_state = herd_evolution[month]
-    milk_income = 0.0
-    feed_cost = 0.0
-    repro_total_cost = 0.0
-    cull_cost = 0.0
-    replacement_total_cost = 0.0
-    calf_income = 0.0
+    # --- With additive ---
+    milk_income_add = 0.0
+    feed_cost_add = 0.0
+    repro_total_cost_add = 0.0
+    cull_cost_add = 0.0
+    replacement_total_cost_add = 0.0
+    calf_income_add = 0.0
+    additive_cost = 0.0
 
-    # For each state, calculate economics
+    # --- Without additive ---
+    milk_income_noadd = 0.0
+    feed_cost_noadd = 0.0
+    repro_total_cost_noadd = 0.0
+    cull_cost_noadd = 0.0
+    replacement_total_cost_noadd = 0.0
+    calf_income_noadd = 0.0
+
     for idx, (par, mim, mip) in enumerate(states):
         n_cows = herd_state[idx]
         if n_cows == 0:
             continue
 
-        # Milk income
-        milk = milk_yield(par, mim) * 30  # kg/month
-        milk_income += n_cows * milk * milk_price
-
-        # Feed cost
-        feed_cost += n_cows * feed_intake * 30 * feed_price
-
-        # Reproduction cost (only for cows eligible for breeding)
+        # --- With additive ---
+        feed_intake_add = feed_intake * (1 - feed_reduction)
+        milk_add = milk_yield(par, mim) * (1 - milk_reduction) * 30
+        milk_income_add += n_cows * milk_add * milk_price
+        feed_cost_add += n_cows * feed_intake_add * 30 * feed_price
+        # Additive cost
+        additive_g_per_cow_per_month = (additive_dose_mg_per_kg_feed / 1000) * feed_intake_add * 30 / 1000
+        additive_cost += n_cows * additive_g_per_cow_per_month * additive_cost_per_g
         if mip == 0 and mim <= Last_MIM_to_Breed:
-            repro_total_cost += n_cows * repro_cost
-
-        # Calf income (when calving occurs: mip == MAX_MIP)
+            repro_total_cost_add += n_cows * repro_cost
         if mip == MAX_MIP:
-            calf_income += n_cows * calf_value
+            calf_income_add += n_cows * calf_value
+
+        # --- Without additive ---
+        milk_noadd = milk_yield(par, mim) * 30
+        milk_income_noadd += n_cows * milk_noadd * milk_price
+        feed_cost_noadd += n_cows * feed_intake * 30 * feed_price
+        if mip == 0 and mim <= Last_MIM_to_Breed:
+            repro_total_cost_noadd += n_cows * repro_cost
+        if mip == MAX_MIP:
+            calf_income_noadd += n_cows * calf_value
 
     # Culling and replacement (estimate from herd loss)
     if month > 0:
         prev_herd = herd_evolution[month-1].sum()
         curr_herd = herd_state.sum()
         n_culled = max(prev_herd - curr_herd, 0)
-        cull_cost += n_culled * (-salvage_value_per_kg * body_weight)  # negative: income
-        replacement_total_cost += n_culled * replacement_cost
+        cull_cost_add += n_culled * (-salvage_value_per_kg * body_weight)
+        replacement_total_cost_add += n_culled * replacement_cost
+        cull_cost_noadd += n_culled * (-salvage_value_per_kg * body_weight)
+        replacement_total_cost_noadd += n_culled * replacement_cost
 
-    # Net cash flow for this month
-    net_cash_flow = (
-        milk_income
-        - feed_cost
-        - repro_total_cost
-        + calf_income
-        + cull_cost  # cull_cost is negative (income)
-        - replacement_total_cost
+    # --- Net cash flow with additive ---
+    net_cash_flow_add = (
+        milk_income_add
+        - feed_cost_add
+        - repro_total_cost_add
+        - additive_cost
+        + calf_income_add
+        + cull_cost_add
+        - replacement_total_cost_add
     )
+    monthly_npv_add = net_cash_flow_add * discount_factor_add
+    npv_over_time_additive.append(monthly_npv_add)
+    discount_factor_add *= monthly_discount
 
-    # Discount to present value
-    monthly_npv = net_cash_flow * discount_factor
-    npv_over_time.append(monthly_npv)
-    discount_factor *= monthly_discount
+    # --- Net cash flow without additive ---
+    net_cash_flow_noadd = (
+        milk_income_noadd
+        - feed_cost_noadd
+        - repro_total_cost_noadd
+        + calf_income_noadd
+        + cull_cost_noadd
+        - replacement_total_cost_noadd
+    )
+    monthly_npv_noadd = net_cash_flow_noadd * discount_factor_noadd
+    npv_over_time_noadditive.append(monthly_npv_noadd)
+    discount_factor_noadd *= monthly_discount
 
-accumulative_npv = np.array(npv_over_time)
-average_monthly_npv = accumulative_npv.mean()
-print(f"Average monthly discounted net present value (NPV): ${average_monthly_npv:.2f}")
-# Plot NPV over time
+# Plot both on the same graph
 plt.figure()
-plt.plot(npv_over_time)
+plt.plot(npv_over_time_additive, label="With Additive")
+plt.plot(npv_over_time_noadditive, label="Without Additive")
 plt.xlabel('Month')
-plt.ylabel('Discounted Net Present Value (NPV) ($)')
-plt.title('Monthly Discounted Net Present Value (NPV) Over Time')
+plt.ylabel('Discounted Net Cash Flow ($)')
+plt.title('Monthly Discounted Net Cash Flow: With vs Without Additive')
+plt.legend()
 plt.tight_layout()
 plt.show()
+
+avg_monthly_npv_add = np.mean(npv_over_time_additive)
+avg_monthly_npv_noadd = np.mean(npv_over_time_noadditive)
+
+print(f"Average monthly discounted NPV (with additive): ${avg_monthly_npv_add:,.2f}")
+print(f"Average monthly discounted NPV (without additive): ${avg_monthly_npv_noadd:,.2f}")
