@@ -338,9 +338,8 @@ def monthly_econ_emis_summary(with_additive=False, herd_evolution=herd_evolution
         
         # Culling and replacement (estimate from herd loss)
         if month > 0:
-            prev_herd = herd_evolution[month-1].sum()
-            curr_herd = herd_state.sum()
-            n_culled = max(prev_herd - curr_herd, 0)
+            cull_state_idx = state_idx[(1, 1, 0)]
+            n_culled = herd_state[cull_state_idx]
             if with_additive:
                 cull_cost_add += n_culled * (salvage_value_per_kg * body_weight)
                 replacement_total_cost_add += n_culled * replacement_cost
