@@ -446,13 +446,16 @@ def find_best_incentive(npv_over_time_additive, methane_noadd_over_time, methane
 
     # (Optional) Plot the NPV vs. incentive curve
     x, y = zip(*npv_results)
-    plt.figure()
+    plt.figure(figsize=(10, 6))
     plt.plot(x, y)
     plt.xlabel("Incentive ($ per kg CH4 reduced per month)")
     plt.ylabel("Discounted Herd NPV ($)")
     plt.title("Optimal Incentive Level for Methane Abatement")
     plt.tight_layout()
-    plt.show()
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'/Users/haowenhu/Library/Mobile Documents/com~apple~CloudDocs/Reed Lab/A Exam/A Exam Responses/MC Figures/Optimal_Incentive_{timestamp}.png'
+    plt.savefig(filename, dpi=300)
+    plt.close()
 
     return best_npv, best_incentive
 
